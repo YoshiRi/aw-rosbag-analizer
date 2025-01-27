@@ -42,13 +42,25 @@ def sidebar_filters(df: pd.DataFrame):
     selected_object_id = st.sidebar.selectbox("Select Object ID", ["(All)"] + object_ids, index=0)
 
     # ◆ timestampのスライダー設定
-    t_min = int(df["t"].min())
-    t_max = int(df["t"].max())
-    time_range = st.sidebar.slider(
-        "Time range [s]",
-        min_value=t_min,
-        max_value=t_max,
-        value=(t_min, t_max)
+    t_min = df["t"].min()
+    t_max = df["t"].max()
+    # --- 2.1 中心時刻 (center_time) をスライダー or 数値入力 ---
+    center_time = st.sidebar.slider(
+        "Center Time [s]", 
+        min_value=t_min, 
+        max_value=t_max, 
+        value= (t_min + t_max) / 2,  # 中心値
+    )
+
+    # --- 2.2 ウィンドウ長 (window_size) をスライダーや数値入力 ---
+    # ここでは「全体の範囲を 0～(t_max - t_min)」に合わせてウィンドウを設定
+    max_window_size = t_max - t_min
+    window_size = st.sidebar.slider(
+        "Window Size", 
+        min_value=0.0, 
+        max_value=20.0, 
+        value=10.0,  # 1 sec
+        step=0.1
     )
 
     # ◆ x, y の範囲で絞り込み (スライダー)
@@ -81,7 +93,8 @@ def sidebar_filters(df: pd.DataFrame):
         "topic": selected_topic,
         "label": selected_label,
         "object_id": selected_object_id,
-        "time_range": time_range,
+        "center_time": center_time,
+        "window_size": window_size,
         "x_range": selected_x_range,
         "y_range": selected_y_range,
         "v_range": selected_v_range
@@ -105,7 +118,10 @@ def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     if filters["object_id"] != "(All)":
         df_filtered = df_filtered[df_filtered["object_id"] == filters["object_id"]]
 
-    t_low, t_high = filters["time_range"]
+    center_time = filters["center_time"]
+    window_size = filters["window_size"]
+    t_low = center_time - window_size/2
+    t_high = center_time + window_size/2
     df_filtered = df_filtered[(df_filtered["t"] >= t_low) & (df_filtered["t"] <= t_high)]
 
     x_low, x_high = filters["x_range"]
@@ -211,9 +227,9 @@ def plot_time_series(df_filtered, filters):
     df_filtered = df_filtered.sort_values("t")
 
     t = df_filtered["t"].values
+    ax.plot(t, df_filtered["yaw"].values, label="yaw", color='green')
     ax.plot(t, df_filtered["position_x"].values, label="pos_x", color='blue')
     ax.plot(t, df_filtered["velocity_x"].values, label="vel_x", color='red')
-    ax.plot(t, df_filtered["yaw"].values, label="yaw", color='green')
 
     ax.set_xlabel("time [relative]")
     ax.set_ylabel("value")
