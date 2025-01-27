@@ -8,25 +8,25 @@ import logging
 # kinematics
 from tf_transformations import euler_from_quaternion
 
-# ログ設定
+# Logging configuration
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# パーサーを外付けするための関数の基本ストラクチャー
+# Base structure for external parsers
 class MessageParser:
     def parse(self, msg, topic_name: str, result: dict):
         """
-        メッセージを解析してデータに追加する基本関数
-        実際の構造に対応してサブクラスで実装する
+        Base function to parse messages and add data to the result.
+        Subclasses should implement this method to handle specific structures.
         """
         raise NotImplementedError("Subclasses should implement this method")
 
-# PerceptionObjects用パーサー
+# Parser for PerceptionObjects
 class PerceptionObjectsParser(MessageParser):
     def parse(self, msg, topic_name: str, result: dict):
         header_time_stamp = msg.header.stamp.sec * 1000000000 + msg.header.stamp.nanosec
         header_frame = msg.header.frame_id
-        result.setdefault(topic_name, []) # prepare empty list if not exists
+        result.setdefault(topic_name, []) # Prepare empty list if not exists
         for obj in msg.objects:
             base_data = {
                 "timestamp": header_time_stamp,
@@ -46,8 +46,7 @@ class PerceptionObjectsParser(MessageParser):
         return {**kinematics, **classification, **shape, **other}
     
     def parse_object_id(self, id):
-        # id is UUID message type, so convert it into string
-        # list of int into string
+        # Convert UUID message type to string
         return ''.join(f'{byte:02x}' for byte in id.uuid)
 
     def parse_shape(self, msg):
@@ -68,13 +67,12 @@ class PerceptionObjectsParser(MessageParser):
         yaw = euler[2]
 
         return {
-            "pose_x": msg_posewithcovariance.pose.position.x,
-            "pose_y": msg_posewithcovariance.pose.position.y,
-            "pose_z": msg_posewithcovariance.pose.position.z,
+            "position_x": msg_posewithcovariance.pose.position.x,
+            "position_y": msg_posewithcovariance.pose.position.y,
+            "position_z": msg_posewithcovariance.pose.position.z,
             "yaw": yaw,
             "velocity_x": msg_twistwithcovariance.twist.linear.x,
             "velocity_y": msg_twistwithcovariance.twist.linear.y,
-            # "velocity_z": msg_twistwithcovariance.twist.linear.z,
             "angular_vz": msg_twistwithcovariance.twist.angular.z,
             "orientation_availability": msg.orientation_availability if hasattr(msg, "orientation_availability") else None,
         }
@@ -90,7 +88,7 @@ class PerceptionObjectsParser(MessageParser):
             6: "BICYCLE",
             7: "PEDESTRIAN"
         }
-        # get the highest probability class
+        # Get the highest probability classification
         highest_cls = None
         for cls in msg:
             if highest_cls is None or cls.probability > highest_cls.probability:
@@ -99,9 +97,8 @@ class PerceptionObjectsParser(MessageParser):
             "label": label_map[highest_cls.label] if highest_cls is not None else "UNKNOWN",
             "probability": highest_cls.probability if highest_cls is not None else 0.0
         }
-        
 
-# バッグファイルを開く関数
+# Function to open ROS bag files
 def open_reader(rosbag_uri: str, serialization_format='cdr'):
     storage_options = rosbag2_py.StorageOptions(uri=rosbag_uri, storage_id='sqlite3')
     converter_options = rosbag2_py.ConverterOptions(
@@ -112,7 +109,7 @@ def open_reader(rosbag_uri: str, serialization_format='cdr'):
     reader.open(storage_options, converter_options)
     return reader
 
-# 次のメッセージを読む関数
+# Function to read the next message
 def read_next_msg(topic_name, data, type_map):
     try:
         msg_type = get_message(type_map[topic_name])
@@ -128,15 +125,15 @@ def read_next_msg(topic_name, data, type_map):
 
     return msg
 
-# バッグファイルからデータを抽出する関数
+# Function to extract data from ROS bag files
 def extract_rosbag(rosbag_file: Path, target_topic: str, parser: MessageParser):
     reader = open_reader(str(rosbag_file))
 
-    # トピックと型のマッピングを取得
+    # Get topic and type mappings
     topics_and_types = reader.get_all_topics_and_types()
     type_map = {topic.name: topic.type for topic in topics_and_types}
 
-    # フィルタを適用
+    # Apply filter
     storage_filter = rosbag2_py.StorageFilter(topics=[target_topic])
     reader.set_filter(storage_filter)
 
@@ -154,7 +151,7 @@ def extract_rosbag(rosbag_file: Path, target_topic: str, parser: MessageParser):
 
     return result
 
-# DataFrameに変換する関数
+# Function to convert data into DataFrame
 def make_data_frame(rosbag_file: Path, target_topic: str, parser: MessageParser):
     data = extract_rosbag(rosbag_file, target_topic, parser)
 
@@ -166,11 +163,11 @@ def make_data_frame(rosbag_file: Path, target_topic: str, parser: MessageParser)
         logger.warning(f"No data found for topic {target_topic}")
         return pd.DataFrame()
 
-# メイン処理
+# Main processing
 def main():
     rosbag_path = "~/Downloads/temp/tracking_eval/result_bag_0.db3" 
     rosbag_path = Path(rosbag_path).expanduser()
-    target_topic = "/perception/object_recognition/objects"  # 抽出対象のトピック名
+    target_topic = "/perception/object_recognition/objects"  # Target topic for extraction
 
     logger.info(f"Processing ROS bag: {rosbag_path}, topic: {target_topic}")
 
