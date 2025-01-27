@@ -89,6 +89,15 @@ def sidebar_filters(df: pd.DataFrame):
         value=(v_min, v_max)
     )
 
+    # filter with distance
+    d_min, d_max = float(df["distance"].min()), float(df["distance"].max())
+    selected_d_range = st.sidebar.slider(
+        "distance range",
+        min_value=d_min,
+        max_value=d_max,
+        value=(d_min, d_max)
+    )
+
     return {
         "topic": selected_topic,
         "label": selected_label,
@@ -97,7 +106,8 @@ def sidebar_filters(df: pd.DataFrame):
         "window_size": window_size,
         "x_range": selected_x_range,
         "y_range": selected_y_range,
-        "v_range": selected_v_range
+        "v_range": selected_v_range,
+        "d_range": selected_d_range,
     }
 
 # =========== 3. フィルタロジックの適用 & 可視化 関数 ===========
@@ -132,6 +142,9 @@ def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
 
     v_low, v_high = filters["v_range"]
     df_filtered = df_filtered[(df_filtered["velocity_x"] >= v_low) & (df_filtered["velocity_x"] <= v_high)]
+
+    d_low, d_high = filters["d_range"]
+    df_filtered = df_filtered[(df_filtered["distance"] >= d_low) & (df_filtered["distance"] <= d_high)]
 
     return df_filtered
 
@@ -257,8 +270,8 @@ def main():
 
     # 散布図の例
     plot_scatter_position(df_filtered, filters)
-    plot_scatter_with_bbox(df_filtered, filters)
     plot_time_series(df_filtered, filters)
+    plot_scatter_with_bbox(df_filtered, filters)
 
 if __name__ == "__main__":
     main()
