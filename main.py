@@ -98,6 +98,37 @@ class PerceptionObjectsParser(MessageParser):
             "probability": highest_cls.probability if highest_cls is not None else 0.0
         }
 
+class TFParser(MessageParser):
+    def __init__(self, source_frame="map", target_frame="base_link"):
+        self.source_frame = source_frame
+        self.target_frame = target_frame
+
+    def parse(self, msg, topic_name: str, result: dict):
+        for transform in msg.transforms:
+            if transform.header.frame_id == self.source_frame and transform.child_frame_id == self.target_frame:
+                header_time_stamp = transform.header.stamp.sec * 1e9 + transform.header.stamp.nanosec  # Convert to nanoseconds
+                translation = transform.transform.translation
+                rotation = transform.transform.rotation
+
+                # Convert quaternion to euler angles
+                quaternion = (rotation.x, rotation.y, rotation.z, rotation.w)
+                euler = euler_from_quaternion(quaternion)
+
+                result.setdefault(topic_name, []).append({
+                    "timestamp": header_time_stamp,
+                    "position_x": translation.x,
+                    "position_y": translation.y,
+                    "position_z": translation.z,
+                    "quaternion_x": rotation.x,
+                    "quaternion_y": rotation.y,
+                    "quaternion_z": rotation.z,
+                    "quaternion_w": rotation.w,
+                    "orientation_roll": euler[0],
+                    "orientation_pitch": euler[1],
+                    "orientation_yaw": euler[2],
+                })
+
+
 # Function to open ROS bag files
 def open_reader(rosbag_uri: str, serialization_format='cdr'):
     storage_options = rosbag2_py.StorageOptions(uri=rosbag_uri, storage_id='sqlite3')
@@ -194,6 +225,7 @@ def make_data_frames(rosbag_file: Path, topics_with_parsers: dict[str, MessagePa
         if topic in data:
             df_topic = pd.DataFrame(data[topic])
             df_topic["date"] = pd.to_datetime(df_topic["timestamp"])
+            df_topic["topic"] = topic
             df = pd.concat([df, df_topic], ignore_index=True)
         else:
             logger.warning(f"No data found for topic {topic}")
@@ -216,11 +248,15 @@ def main():
     logger.info(f"Processing ROS bag: {rosbag_path}, settings: {parse_settings}")
 
     df = make_data_frames(rosbag_path, parse_settings)
+    tf_df = make_data_frames(rosbag_path, {"/tf": TFParser()})
 
     if not df.empty:
         output_path = "output.csv"
         df.to_csv(output_path, index=False)
         logger.info(f"Data saved to {output_path}")
+        tf_output_path = "tf_" + output_path
+        tf_df.to_csv(tf_output_path, index=False)
+        logger.info(f"TF data saved to {tf_output_path}")
     else:
         logger.info("No data extracted.")
 
