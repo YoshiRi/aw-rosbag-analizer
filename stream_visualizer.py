@@ -14,7 +14,8 @@ def load_data(csv_path: str) -> pd.DataFrame:
     
     # 例: timestampの最小値を0に合わせるなどの前処理
     t_min = df["timestamp"].min()
-    df["t"] = (df["timestamp"] - t_min ) *1e-9  # ナノ秒を秒に変換
+    df["t"] = (df["timestamp"] - t_min ) *1e-9  # ns -> s
+    df["velocity"] = np.sqrt(df["velocity_x"]**2 + df["velocity_y"]**2)
     df["distance"] = np.sqrt(df["position_x"]**2 + df["position_y"]**2)
     
     return df
@@ -80,10 +81,10 @@ def sidebar_filters(df: pd.DataFrame):
         value=(y_min, y_max)
     )
 
-    # ◆ velocity_x の範囲で絞り込み (スライダー)
-    v_min, v_max = float(df["velocity_x"].min()), float(df["velocity_x"].max())
+    # ◆ velocity の範囲で絞り込み (スライダー)
+    v_min, v_max = float(df["velocity"].min()), float(df["velocity"].max())
     selected_v_range = st.sidebar.slider(
-        "velocity_x range",
+        "velocity range",
         min_value=v_min,
         max_value=v_max,
         value=(v_min, v_max)
