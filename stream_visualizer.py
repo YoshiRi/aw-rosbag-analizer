@@ -38,8 +38,8 @@ def sidebar_filters(df: pd.DataFrame):
     selected_label = st.sidebar.selectbox("Select Label", ["(All)"] + label_list, index=0)
 
     # ◆ Object IDで絞り込み
-    object_ids = sorted(df["object_id"].dropna().unique())
-    selected_object_id = st.sidebar.selectbox("Select Object ID", ["(All)"] + object_ids, index=0)
+    # object_ids = sorted(df["object_id"].dropna().unique())
+    # selected_object_id = st.sidebar.selectbox("Select Object ID", ["(All)"] + object_ids, index=0)
 
     # ◆ timestampのスライダー設定
     t_min = df["t"].min()
@@ -101,7 +101,7 @@ def sidebar_filters(df: pd.DataFrame):
     return {
         "topic": selected_topic,
         "label": selected_label,
-        "object_id": selected_object_id,
+        # "object_id": selected_object_id,
         "center_time": center_time,
         "window_size": window_size,
         "x_range": selected_x_range,
@@ -125,8 +125,8 @@ def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     if filters["label"] != "(All)":
         df_filtered = df_filtered[df_filtered["label"] == filters["label"]]
 
-    if filters["object_id"] != "(All)":
-        df_filtered = df_filtered[df_filtered["object_id"] == filters["object_id"]]
+    # if filters["object_id"] != "(All)":
+    #     df_filtered = df_filtered[df_filtered["object_id"] == filters["object_id"]]
 
     center_time = filters["center_time"]
     window_size = filters["window_size"]
@@ -148,11 +148,32 @@ def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
 
     return df_filtered
 
+def draw_object_id_slider(df: pd.DataFrame):
+    """
+    Object ID で絞り込むためのスライダーを描画する。
+    """
+    object_ids = df["object_id"].fillna("None").unique().tolist()
+    selected_object_id = st.selectbox("Select Object ID", ["(All)"] + object_ids, index=0)
+    if selected_object_id == "(All)":
+        return df
+    if selected_object_id == "None":
+        df_filtered = df[df["object_id"].isnull()]
+    else:
+        df_filtered = df[df["object_id"] == selected_object_id]
+    # for multi select
+    # selected_obj_ids = st.multiselect(
+    #     "Select object_ids from filtered data",
+    #     options=object_ids,
+    #     default=object_ids[0] if len(object_ids) > 0 else None
+    # )
+    # df_filtered = df[df["object_id"].isin(selected_obj_ids)]
+    return df_filtered
+
 def plot_scatter_position(df_filtered: pd.DataFrame, filters: dict):
     """
     フィルタ後のデータを受け取り、散布図をmatplotlibで作成して表示する。
     """
-    fig, ax = plt.subplots(figsize=(8,6))
+    fig, ax = plt.subplots(figsize=(12,8))
 
     if len(df_filtered) == 0:
         ax.text(0.5, 0.5, "No data", ha='center', va='center')
@@ -160,7 +181,7 @@ def plot_scatter_position(df_filtered: pd.DataFrame, filters: dict):
         ax.scatter(df_filtered["position_x"], df_filtered["position_y"], c='blue', alpha=0.5)
         
         # タイトル例: 選択中のフィルタ情報を少し入れる
-        title_str = f"topic={filters['topic']}, label={filters['label']}, ObjID={filters['object_id']}"
+        title_str = f"topic={filters['topic']}, label={filters['label']}"
         ax.set_title(title_str)
         
         ax.set_xlabel("position_x")
@@ -173,7 +194,7 @@ def plot_scatter_with_bbox(df_filtered, filters):
     position_x, position_y を散布しつつ、
     length, width, yawを用いてバウンディングボックスを2D描画する。
     """
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(12,8))
 
     if len(df_filtered) == 0:
         ax.text(0.5, 0.5, "No data", ha='center', va='center')
@@ -217,7 +238,7 @@ def plot_scatter_with_bbox(df_filtered, filters):
         # 辺を描画
         ax.plot(corners_global[:,0], corners_global[:,1], color='red', linewidth=1)
 
-    title_str = f"topic={filters['topic']}, label={filters['label']}, ObjID={filters['object_id']}"
+    title_str = f"topic={filters['topic']}, label={filters['label']}"
     ax.set_title(title_str)
     ax.set_xlabel("position_x")
     ax.set_ylabel("position_y")
@@ -247,7 +268,7 @@ def plot_time_series(df_filtered, filters):
     ax.set_xlabel("time [relative]")
     ax.set_ylabel("value")
     ax.legend()
-    title_str = f"Time series (ObjID={filters['object_id']})"
+    title_str = f"Time series"
     ax.set_title(title_str)
 
     st.pyplot(fig)
@@ -265,13 +286,14 @@ def main():
 
     # 3) フィルタを適用して可視化
     df_filtered = apply_filters(df, filters)
+    df_filtered = draw_object_id_slider(df_filtered)
 
     st.write(f"**Filtered data size**: {len(df_filtered)}")
 
     # 散布図の例
-    plot_scatter_position(df_filtered, filters)
-    plot_time_series(df_filtered, filters)
+    # plot_scatter_position(df_filtered, filters)
     plot_scatter_with_bbox(df_filtered, filters)
+    plot_time_series(df_filtered, filters)
 
 if __name__ == "__main__":
     main()
