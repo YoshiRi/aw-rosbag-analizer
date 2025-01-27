@@ -17,6 +17,28 @@ def load_data(csv_path: str) -> pd.DataFrame:
     df["t"] = (df["timestamp"] - t_min ) *1e-9  # ns -> s
     df["velocity"] = np.sqrt(df["velocity_x"]**2 + df["velocity_y"]**2)
     df["distance"] = np.sqrt(df["position_x"]**2 + df["position_y"]**2)
+
+    def str2nparray(s:str):
+        if isinstance(s, str):
+            s = s.strip()
+            # 先頭 '[' と末尾 ']' を除去（存在すれば）
+            if s.startswith('['):
+                s = s[1:]
+            if s.endswith(']'):
+                s = s[:-1]
+            # 改行(\n)をスペースに置き換え
+            s = s.replace('\n', ' ')
+            # スペース区切りで float に変換
+            arr = np.fromstring(s, sep=' ')
+            return arr
+        else:
+            return None
+    df["pose_covariance"] = df["pose_covariance"].apply(str2nparray)
+    df["twist_covariance"] = df["twist_covariance"].apply(str2nparray)
+    df["cov_std_x"] = df["pose_covariance"].apply(lambda x: x[0] if x is not None else None)
+    df["cov_std_yaw"] = df["pose_covariance"].apply(lambda x: x[35] if x is not None else None)
+    df["cov_std_vx"] = df["twist_covariance"].apply(lambda x: x[0] if x is not None else None)
+    df.drop(columns=["pose_covariance", "twist_covariance"], inplace=True)
     
     return df
 
@@ -262,9 +284,10 @@ def plot_time_series(df_filtered, filters):
     df_filtered = df_filtered.sort_values("t")
 
     t = df_filtered["t"].values
-    ax.plot(t, df_filtered["yaw"].values, label="yaw", color='green')
-    ax.plot(t, df_filtered["position_x"].values, label="pos_x", color='blue')
-    ax.plot(t, df_filtered["velocity_x"].values, label="vel_x", color='red')
+    # ax.plot(t, df_filtered["position_x"].values, label="pos_x", color='blue', linestyle='-')
+    # ax.plot(t, df_filtered["position_y"].values, label="pos_y", color='red', linestyle='-')
+    ax.plot(t, df_filtered["distance"].values, label="dist", color='green', linestyle='-', marker='.')
+    ax.plot(t, df_filtered["cov_std_x"].values, label="cov_std_x", color='blue', linestyle='-', marker='.')
 
     ax.set_xlabel("time [relative]")
     ax.set_ylabel("value")
@@ -274,6 +297,29 @@ def plot_time_series(df_filtered, filters):
 
     st.pyplot(fig)
 
+    # velocity plot
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(t, df_filtered["velocity"].values, label="velocity", color='blue', linestyle='-')
+    ax.plot(t, df_filtered["cov_std_vx"].values, label="cov_std_vx", color='red', linestyle='-')
+    ax.set_xlabel("time [relative]")
+    ax.set_ylabel("velocity")
+    ax.legend()
+    title_str = f"Time series"
+    ax.set_title(title_str)
+
+    st.pyplot(fig)
+
+    # yaw plot
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(t, df_filtered["yaw"].values, label="yaw", color='blue', linestyle='-', marker='.')
+    ax.plot(t, df_filtered["cov_std_yaw"].values, label="cov_std_yaw", color='red', linestyle='-', marker='.')
+    ax.set_xlabel("time [relative]")
+    ax.set_ylabel("yaw")
+    ax.legend()
+    title_str = f"Time series"
+    ax.set_title(title_str)
+
+    st.pyplot(fig)
 
 
 def main():
