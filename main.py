@@ -66,6 +66,14 @@ class PerceptionObjectsParser(MessageParser):
         euler = euler_from_quaternion(quaternion)
         yaw = euler[2]
 
+        # covariance check for detection
+        has_pose_covariance = hasattr(msg_posewithcovariance, "covariance")
+        if hasattr(msg, "has_position_covariance"):
+            has_pose_covariance = msg.has_position_covariance
+        has_twist_covariance = hasattr(msg_twistwithcovariance, "covariance")
+        if hasattr(msg, "has_velocity_covariance"):
+            has_twist_covariance = msg.has_velocity_covariance
+
         return {
             "position_x": msg_posewithcovariance.pose.position.x,
             "position_y": msg_posewithcovariance.pose.position.y,
@@ -75,6 +83,8 @@ class PerceptionObjectsParser(MessageParser):
             "velocity_y": msg_twistwithcovariance.twist.linear.y,
             "angular_vz": msg_twistwithcovariance.twist.angular.z,
             "orientation_availability": msg.orientation_availability if hasattr(msg, "orientation_availability") else None,
+            "pose_covariance": msg_posewithcovariance.covariance if has_pose_covariance else None,
+            "twist_covariance": msg_twistwithcovariance.covariance if has_twist_covariance else None,
         }
     
     def parse_classification(self, msg):
