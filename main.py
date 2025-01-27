@@ -24,7 +24,7 @@ class MessageParser:
 # Parser for PerceptionObjects
 class PerceptionObjectsParser(MessageParser):
     def parse(self, msg, topic_name: str, result: dict):
-        header_time_stamp = msg.header.stamp.sec * 1000000000 + msg.header.stamp.nanosec
+        header_time_stamp = msg.header.stamp.sec * 1e9 + msg.header.stamp.nanosec
         header_frame = msg.header.frame_id
         result.setdefault(topic_name, []) # Prepare empty list if not exists
         for obj in msg.objects:
@@ -151,28 +151,71 @@ def extract_rosbag(rosbag_file: Path, target_topic: str, parser: MessageParser):
 
     return result
 
+# overloading
+def extract_rosbag(rosbag_file: Path, parse_settings: dict[str, MessageParser]):
+    reader = open_reader(str(rosbag_file))
+
+    # Get topic and type mappings
+    topics_and_types = reader.get_all_topics_and_types()
+    type_map = {topic.name: topic.type for topic in topics_and_types}
+
+    result = {}
+
+    while reader.has_next():
+        topic_name, data, _ = reader.read_next()
+
+        msg = read_next_msg(topic_name, data, type_map)
+        if msg is None:
+            continue
+
+        if topic_name in parse_settings:
+            parser = parse_settings[topic_name]
+            parser.parse(msg, topic_name, result)
+
+    return result
+
 # Function to convert data into DataFrame
 def make_data_frame(rosbag_file: Path, target_topic: str, parser: MessageParser):
     data = extract_rosbag(rosbag_file, target_topic, parser)
 
     if target_topic in data:
         df = pd.DataFrame(data[target_topic])
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df["date"] = pd.to_datetime(df["timestamp"])
         return df
     else:
         logger.warning(f"No data found for topic {target_topic}")
         return pd.DataFrame()
 
+def make_data_frames(rosbag_file: Path, topics_with_parsers: dict[str, MessageParser]):
+    data = extract_rosbag(rosbag_file, topics_with_parsers)
+
+    df = pd.DataFrame()
+    for topic, parser in topics_with_parsers.items():
+        if topic in data:
+            df_topic = pd.DataFrame(data[topic])
+            df_topic["date"] = pd.to_datetime(df_topic["timestamp"])
+            df = pd.concat([df, df_topic], ignore_index=True)
+        else:
+            logger.warning(f"No data found for topic {topic}")
+
+    return df
+
 # Main processing
 def main():
     rosbag_path = "~/Downloads/temp/tracking_eval/result_bag_0.db3" 
     rosbag_path = Path(rosbag_path).expanduser()
-    target_topic = "/perception/object_recognition/objects"  # Target topic for extraction
+    # target_topic = "/perception/object_recognition/objects"  # Target topic for extraction
+    # parser = PerceptionObjectsParser()
+    # df = make_data_frame(Path(rosbag_path), target_topic, parser)
 
-    logger.info(f"Processing ROS bag: {rosbag_path}, topic: {target_topic}")
+    parse_settings = {
+        "/perception/object_recognition/objects": PerceptionObjectsParser(),
+        "/perception/object_recognition/detection/objects": PerceptionObjectsParser()
+    }
 
-    parser = PerceptionObjectsParser()
-    df = make_data_frame(Path(rosbag_path), target_topic, parser)
+    logger.info(f"Processing ROS bag: {rosbag_path}, settings: {parse_settings}")
+
+    df = make_data_frames(rosbag_path, parse_settings)
 
     if not df.empty:
         output_path = "output.csv"
