@@ -4,6 +4,51 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # =========== 1. データ読み込み・前処理 関数 ===========
+def get_xy_major_std(cov_6x6) -> float:
+    """
+    6x6 の共分散（1次元配列 [36]）から、
+    (x,y) の2×2サブ行列を取り出して最大固有値の平方根を返す。
+
+    - cov_6x6: shape=(36,) または (6,6) など。
+      None や不正値の場合は None を返す。
+    """
+    # まず None や形状をチェック
+    if cov_6x6 is None:
+        return None
+    arr = np.array(cov_6x6)
+    if arr.size != 36:
+        return None
+    arr_2d = arr.reshape(6,6)
+
+    # (x,y) 部分の2×2切り出し
+    #   x軸 = arr_2d[0,0], arr_2d[0,1], arr_2d[1,0], arr_2d[1,1]
+    sub_2x2 = arr_2d[:2, :2]  # 上左2×2
+    # 固有値分解
+    w, v = np.linalg.eig(sub_2x2)
+    # 実数固有値の最大値をとる (負になってしまう可能性がある場合はabsを取るか要検討)
+    max_eigenvalue = np.max(w)
+    # eigenvalue が正であれば sqrt を返す
+    if max_eigenvalue < 0:
+        # 物理的にはありえない(負の分散)がデータエラーの場合は None など
+        return None
+    major_std = np.sqrt(max_eigenvalue)
+    return major_std
+
+def str2nparray(s:str):
+    if isinstance(s, str):
+        s = s.strip()
+        # 先頭 '[' と末尾 ']' を除去（存在すれば）
+        if s.startswith('['):
+            s = s[1:]
+        if s.endswith(']'):
+            s = s[:-1]
+        # 改行(\n)をスペースに置き換え
+        s = s.replace('\n', ' ')
+        # スペース区切りで float に変換
+        arr = np.fromstring(s, sep=' ')
+        return arr
+    else:
+        return None
 
 @st.cache_data  # データをキャッシュすることで再読込みを防ぐ (Streamlit 1.18 以降は st.cache_data)
 def load_data(csv_path: str) -> pd.DataFrame:
@@ -16,28 +61,14 @@ def load_data(csv_path: str) -> pd.DataFrame:
     t_min = df["timestamp"].min()
     df["t"] = (df["timestamp"] - t_min ) *1e-9  # ns -> s
     df["velocity"] = np.sqrt(df["velocity_x"]**2 + df["velocity_y"]**2)
+    df["slip_angle"] = np.arctan2(df["velocity_y"], df["velocity_x"])
     df["distance"] = np.sqrt(df["position_x"]**2 + df["position_y"]**2)
 
-    def str2nparray(s:str):
-        if isinstance(s, str):
-            s = s.strip()
-            # 先頭 '[' と末尾 ']' を除去（存在すれば）
-            if s.startswith('['):
-                s = s[1:]
-            if s.endswith(']'):
-                s = s[:-1]
-            # 改行(\n)をスペースに置き換え
-            s = s.replace('\n', ' ')
-            # スペース区切りで float に変換
-            arr = np.fromstring(s, sep=' ')
-            return arr
-        else:
-            return None
     df["pose_covariance"] = df["pose_covariance"].apply(str2nparray)
     df["twist_covariance"] = df["twist_covariance"].apply(str2nparray)
-    df["cov_std_x"] = df["pose_covariance"].apply(lambda x: x[0] if x is not None else None)
+    df["cov_std_x"] = df["pose_covariance"].apply(get_xy_major_std)
     df["cov_std_yaw"] = df["pose_covariance"].apply(lambda x: x[35] if x is not None else None)
-    df["cov_std_vx"] = df["twist_covariance"].apply(lambda x: x[0] if x is not None else None)
+    df["cov_std_v"] = df["twist_covariance"].apply(get_xy_major_std)
     df.drop(columns=["pose_covariance", "twist_covariance"], inplace=True)
     
     return df
@@ -286,8 +317,7 @@ def plot_time_series(df_filtered, filters):
     t = df_filtered["t"].values
     # ax.plot(t, df_filtered["position_x"].values, label="pos_x", color='blue', linestyle='-')
     # ax.plot(t, df_filtered["position_y"].values, label="pos_y", color='red', linestyle='-')
-    ax.plot(t, df_filtered["distance"].values, label="dist", color='green', linestyle='-', marker='.')
-    ax.plot(t, df_filtered["cov_std_x"].values, label="cov_std_x", color='blue', linestyle='-', marker='.')
+    ax.plot(t, df_filtered["distance"].values, label="dist", color='blue', linestyle='-', marker='.')
 
     ax.set_xlabel("time [relative]")
     ax.set_ylabel("value")
@@ -299,8 +329,9 @@ def plot_time_series(df_filtered, filters):
 
     # velocity plot
     fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(t, df_filtered["velocity"].values, label="velocity", color='blue', linestyle='-')
-    ax.plot(t, df_filtered["cov_std_vx"].values, label="cov_std_vx", color='red', linestyle='-')
+    ax.plot(t, df_filtered["velocity"].values, label="velocity", color='blue', linestyle='-', marker='.')
+    ax.plot(t, df_filtered["cov_std_v"].values, label="cov_std_v", color='red', linestyle='-', marker='.')
+    ax.plot(t, df_filtered["cov_std_x"].values, label="cov_std_x", color='green', linestyle='-', marker='.')
     ax.set_xlabel("time [relative]")
     ax.set_ylabel("velocity")
     ax.legend()
@@ -313,6 +344,7 @@ def plot_time_series(df_filtered, filters):
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.plot(t, df_filtered["yaw"].values, label="yaw", color='blue', linestyle='-', marker='.')
     ax.plot(t, df_filtered["cov_std_yaw"].values, label="cov_std_yaw", color='red', linestyle='-', marker='.')
+    ax.plot(t, df_filtered["slip_angle"].values, label="slip_angle", color='green', linestyle='-', marker='.')
     ax.set_xlabel("time [relative]")
     ax.set_ylabel("yaw")
     ax.legend()
