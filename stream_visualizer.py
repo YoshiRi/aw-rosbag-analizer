@@ -345,6 +345,7 @@ def plot_time_series(df_filtered, filters):
     ax.plot(t, df_filtered["yaw"].values, label="yaw", color='blue', linestyle='-', marker='.')
     ax.plot(t, df_filtered["cov_std_yaw"].values, label="cov_std_yaw", color='red', linestyle='-', marker='.')
     ax.plot(t, df_filtered["slip_angle"].values, label="slip_angle", color='green', linestyle='-', marker='.')
+    ax.plot(t, df_filtered["yaw"].values + df_filtered["slip_angle"].values, label="velocity_direction", color='orange', linestyle='-', alpha=0.5)
     ax.set_xlabel("time [relative]")
     ax.set_ylabel("yaw")
     ax.legend()
