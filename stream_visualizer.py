@@ -354,6 +354,74 @@ def plot_time_series(df_filtered, filters):
 
     st.pyplot(fig)
 
+def plot_distance_histogram_by_class(df_filtered):
+    """
+    df_filtered の中で label (class) ごとに distance のヒストグラムを
+    1枚のグラフに重ね描画する。
+    """
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    if len(df_filtered) == 0:
+        ax.text(0.5, 0.5, "No data", ha='center', va='center')
+        st.pyplot(fig)
+        return
+
+    # クラスごとにグループ化
+    grouped = df_filtered.groupby("label")
+
+    # bins は適宜変更
+    bins = 30
+
+    # 各クラスの distance を重ねて描画 (overlapped histogram)
+    for label_value, sub_df in grouped:
+        distances = sub_df["distance"].dropna()
+        ax.hist(
+            distances,
+            bins=bins,
+            alpha=0.5,            # 重ねたときに透けて見やすいように
+            label=str(label_value)
+        )
+
+    ax.set_title("Distance Histogram by Class (Overlapped)")
+    ax.set_xlabel("Distance")
+    ax.set_ylabel("Count")
+    ax.legend()
+    st.pyplot(fig)
+
+def plot_distance_histogram_by_class_stacked(df_filtered):
+    """
+    df_filtered の中で label (class) ごとに distance のヒストグラムを
+    積み上げ（stacked）形式で1枚のグラフに描画する。
+    """
+    fig, ax = plt.subplots(figsize=(8,6))
+
+    if len(df_filtered) == 0:
+        ax.text(0.5, 0.5, "No data", ha='center', va='center')
+        st.pyplot(fig)
+        return
+
+    # クラスごとに distance データをリストで集める
+    labels = df_filtered["label"].dropna().unique()
+    distances_list = []
+
+    # label順でリストを作成
+    for label_value in labels:
+        sub_df = df_filtered.loc[df_filtered["label"] == label_value, "distance"].dropna()
+        distances_list.append(sub_df.values)
+
+    # bins は適宜変更
+    bins = 30
+
+    # stacked=True で積み上げヒストグラム
+    ax.hist(distances_list, bins=bins, stacked=True, label=labels)
+
+    ax.set_title("Distance Histogram by Class (Stacked)")
+    ax.set_xlabel("Distance")
+    ax.set_ylabel("Count")
+    ax.legend()
+    
+    st.pyplot(fig)
+
 
 def main():
     st.title("Streamlit Filtering Example")
@@ -374,6 +442,7 @@ def main():
     # plot_scatter_position(df_filtered, filters)
     plot_scatter_with_bbox(df_filtered, filters)
     plot_time_series(df_filtered, filters)
+    plot_distance_histogram_by_class_stacked(df_filtered)
 
 if __name__ == "__main__":
     main()
