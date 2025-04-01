@@ -98,12 +98,17 @@ def sidebar_filters(df: pd.DataFrame):
     # ◆ timestampのスライダー設定
     t_min = df["t"].min()
     t_max = df["t"].max()
+    
+    # すべての時系列データを使用するオプション
+    use_all_time_data = st.sidebar.checkbox("use all time series", value=False)
+    
     # --- 2.1 中心時刻 (center_time) をスライダー or 数値入力 ---
     center_time = st.sidebar.slider(
         "Center Time [s]", 
         min_value=t_min, 
         max_value=t_max, 
         value= (t_min + t_max) / 2,  # 中心値
+        disabled=use_all_time_data,  # すべてのデータを使用する場合は無効化
     )
 
     # --- 2.2 ウィンドウ長 (window_size) をスライダーや数値入力 ---
@@ -114,7 +119,8 @@ def sidebar_filters(df: pd.DataFrame):
         min_value=0.0, 
         max_value=20.0, 
         value=10.0,  # 1 sec
-        step=0.1
+        step=0.1,
+        disabled=use_all_time_data,  # すべてのデータを使用する場合は無効化
     )
 
     # ◆ x, y の範囲で絞り込み (スライダー)
@@ -162,6 +168,7 @@ def sidebar_filters(df: pd.DataFrame):
         "y_range": selected_y_range,
         "v_range": selected_v_range,
         "d_range": selected_d_range,
+        "use_all_time_data": use_all_time_data,  # 新しいフラグを追加
     }
 
 # =========== 3. フィルタロジックの適用 & 可視化 関数 ===========
@@ -182,11 +189,13 @@ def apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     # if filters["object_id"] != "(All)":
     #     df_filtered = df_filtered[df_filtered["object_id"] == filters["object_id"]]
 
-    center_time = filters["center_time"]
-    window_size = filters["window_size"]
-    t_low = center_time - window_size/2
-    t_high = center_time + window_size/2
-    df_filtered = df_filtered[(df_filtered["t"] >= t_low) & (df_filtered["t"] <= t_high)]
+    # すべての時系列データを使用するオプションがオフの場合のみ時間フィルタを適用
+    if not filters["use_all_time_data"]:
+        center_time = filters["center_time"]
+        window_size = filters["window_size"]
+        t_low = center_time - window_size/2
+        t_high = center_time + window_size/2
+        df_filtered = df_filtered[(df_filtered["t"] >= t_low) & (df_filtered["t"] <= t_high)]
 
     x_low, x_high = filters["x_range"]
     df_filtered = df_filtered[(df_filtered["position_x"] >= x_low) & (df_filtered["position_x"] <= x_high)]
