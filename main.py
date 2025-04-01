@@ -244,15 +244,30 @@ def make_data_frames(rosbag_file: Path, topics_with_parsers: dict[str, MessagePa
 
 # Main processing
 def main():
-    rosbag_path = "~/Downloads/temp/tracking_eval/result_bag_0.db3" 
-    rosbag_path = Path(rosbag_path).expanduser()
+    # add argparse to get rosbag path
+    import argparse
+    parser = argparse.ArgumentParser(description="Extract data from ROS bag files")
+    parser.add_argument("--rosbag_path", type=str, default="", help="Path to the ROS bag file")
+    parser.add_argument("--output", type=str, default="output.csv", help="Output file path")
+    args = parser.parse_args()
+
+    if args.rosbag_path:
+        rosbag_path = Path(args.rosbag_path).expanduser()
+    else:
+        rosbag_path = "~/Downloads/temp/tracking_eval/result_bag_0.db3" 
+        name = "s3_19"
+        rosbag_path = f"../{name}/{name}_0.db3"
+        rosbag_path = Path(rosbag_path).expanduser()
     # target_topic = "/perception/object_recognition/objects"  # Target topic for extraction
     # parser = PerceptionObjectsParser()
     # df = make_data_frame(Path(rosbag_path), target_topic, parser)
 
     parse_settings = {
-        "/perception/object_recognition/objects": PerceptionObjectsParser(),
-        "/perception/object_recognition/detection/objects": PerceptionObjectsParser()
+        # "/perception/object_recognition/objects": PerceptionObjectsParser(),
+        "/perception/object_recognition/detection/objects": PerceptionObjectsParser(),
+        "/sensing/radar/front_center/tracked_objects2": PerceptionObjectsParser(),
+        "/sensing/radar/front_left/tracked_objects2": PerceptionObjectsParser(),
+        "/sensing/radar/rear_center/tracked_objects2": PerceptionObjectsParser(),
     }
 
     logger.info(f"Processing ROS bag: {rosbag_path}, settings: {parse_settings}")
@@ -261,7 +276,7 @@ def main():
     tf_df = make_data_frames(rosbag_path, {"/tf": TFParser()})
 
     if not df.empty:
-        output_path = "output.csv"
+        output_path = args.output
         df.to_csv(output_path, index=False)
         logger.info(f"Data saved to {output_path}")
         tf_output_path = "tf_" + output_path
