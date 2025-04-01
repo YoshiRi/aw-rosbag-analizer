@@ -422,6 +422,99 @@ def plot_distance_histogram_by_class_stacked(df_filtered):
     
     st.pyplot(fig)
 
+def plot_angle_histogram_by_class_stacked(df_filtered):
+    """
+    df_filtered の中で label (class) ごとに object の角度（arctan2(position_y, position_x)）
+    のヒストグラムを積み上げ（stacked）形式で1枚のグラフに描画する。
+    """
+    fig, ax = plt.subplots(figsize=(8,6))
+    
+    if len(df_filtered) == 0:
+        ax.text(0.5, 0.5, "No data", ha='center', va='center')
+        st.pyplot(fig)
+        return
+
+    # 各オブジェクトの角度を計算
+    # np.arctan2を使うことで、正しく[-pi, pi]の範囲が得られる
+    df_filtered = df_filtered.copy()  # オリジナルを変更しないためコピー
+    df_filtered["angle"] = np.arctan2(df_filtered["position_y"], df_filtered["position_x"])
+
+    # ラベルごとに角度データをリストで集める
+    labels = df_filtered["label"].dropna().unique()
+    angles_list = []
+    for label_value in labels:
+        sub_df = df_filtered.loc[df_filtered["label"] == label_value, "angle"].dropna()
+        angles_list.append(sub_df.values)
+
+    # ビンは 範囲によって[-pi, pi]か[-pi/2, pi/2] かを可変
+    min_angle = df_filtered["angle"].min()
+    max_angle = df_filtered["angle"].max()
+    min_bin_angle = -np.pi if min_angle < -np.pi/2 else -np.pi/2
+    max_bin_angle = np.pi if max_angle > np.pi/2 else np.pi/2
+    # 30個のビンを基本として、範囲が広い場合は倍にする
+    base_bin_num = 30
+    bin_num = base_bin_num if max_bin_angle - min_bin_angle <= np.pi else base_bin_num * 2 
+    bins = np.linspace(min_bin_angle, max_bin_angle, bin_num)
+    
+    # stacked=True で積み上げヒストグラム
+    ax.hist(angles_list, bins=bins, stacked=True, label=labels)
+
+    ax.set_title("Angle Histogram by Class (Stacked)")
+    ax.set_xlabel("Angle (radian)")
+    ax.set_ylabel("Count")
+    ax.legend()
+    
+    st.pyplot(fig)
+
+def plot_polar_distribution(df_filtered):
+    """
+    df_filtered の中で、各オブジェクトの角度 (arctan2(position_y, position_x))
+    と distance の分布を極座標グリッド上にヒートマップ表示する。
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    # コピーして安全に作業。既に 'distance' は前処理済みとする。
+    df_plot = df_filtered.copy()
+    
+    # 角度がなければ計算する ([-π, π]の範囲)
+    if "angle" not in df_plot.columns:
+        df_plot["angle"] = np.arctan2(df_plot["position_y"], df_plot["position_x"])
+    
+    angles = df_plot["angle"].values
+    distances = df_plot["distance"].values
+
+    # 極座標のサブプロットを作成
+    fig, ax = plt.subplots(figsize=(8,8), subplot_kw={'projection': 'polar'})
+
+    # ビンの設定
+    # 角度は[-π, π]の範囲を36ビン（10度刻み）に分割
+    max_angle = df_plot["angle"].max()
+    min_angle = df_plot["angle"].min()
+    max_bin_angle = np.pi if max_angle > np.pi/2 else np.pi/2
+    min_bin_angle = -np.pi if min_angle < -np.pi/2 else -np.pi/2
+    bin_num = (max_bin_angle - min_bin_angle) / np.pi * 18
+    theta_bins = np.linspace(min_bin_angle, max_bin_angle, int(bin_num)+1)
+    # 距離は0から最大値まで20ビン（必要に応じて調整）
+    max_distance = df_plot["distance"].max()
+    max_bin_distance = 100 if max_distance < 110 else 200
+    r_bins = np.linspace(0, max_bin_distance, 21)
+
+    # 2次元ヒストグラムを作成。np.histogram2d の第一引数は角度、第二が距離
+    H, theta_edges, r_edges = np.histogram2d(angles, distances, bins=[theta_bins, r_bins])
+    # ※ H の形状は (len(theta_bins)-1, len(r_bins)-1) となる
+
+    # pcolormesh に渡す際、H の軸の向きを合わせるために転置する
+    pcm = ax.pcolormesh(theta_edges, r_edges, H.T, cmap='viridis')
+
+    fig.colorbar(pcm, ax=ax, label='Count')
+    ax.set_title("Polar Distribution of Angle and Distance")
+    # 必要に応じて、ゼロの位置や方向を設定
+    ax.set_theta_zero_location("N")
+    ax.set_theta_direction(-1)
+    
+    st.pyplot(fig)
+
 
 def main():
     st.title("Streamlit Filtering Example")
@@ -443,6 +536,7 @@ def main():
     plot_scatter_with_bbox(df_filtered, filters)
     plot_time_series(df_filtered, filters)
     plot_distance_histogram_by_class_stacked(df_filtered)
-
+    plot_angle_histogram_by_class_stacked(df_filtered)
+    plot_polar_distribution(df_filtered)
 if __name__ == "__main__":
     main()
