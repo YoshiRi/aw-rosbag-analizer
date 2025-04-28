@@ -524,6 +524,97 @@ def plot_polar_distribution(df_filtered):
     
     st.pyplot(fig)
 
+def plot_size_histogram_by_class(df_filtered):
+    """
+    df_filtered の中で label (class) ごとに物体のサイズ（length, width）の
+    ヒストグラムを表示する。
+    """
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+    
+    if len(df_filtered) == 0:
+        ax1.text(0.5, 0.5, "No data", ha='center', va='center')
+        ax2.text(0.5, 0.5, "No data", ha='center', va='center')
+        st.pyplot(fig)
+        return
+    
+    # NaN値を除外
+    df_size = df_filtered.dropna(subset=["length", "width"])
+    
+    if len(df_size) == 0:
+        ax1.text(0.5, 0.5, "No size data", ha='center', va='center')
+        ax2.text(0.5, 0.5, "No size data", ha='center', va='center')
+        st.pyplot(fig)
+        return
+    
+    # クラスごとにグループ化
+    grouped = df_size.groupby("label")
+    
+    # 各クラスの length と width を描画
+    for label_value, sub_df in grouped:
+        lengths = sub_df["length"].values
+        widths = sub_df["width"].values
+        
+        # length のヒストグラム
+        ax1.hist(
+            lengths,
+            bins=20,
+            alpha=0.5,
+            label=str(label_value)
+        )
+        
+        # width のヒストグラム
+        ax2.hist(
+            widths,
+            bins=20,
+            alpha=0.5,
+            label=str(label_value)
+        )
+    
+    ax1.set_title("Length Histogram by Class")
+    ax1.set_xlabel("Length [m]")
+    ax1.set_ylabel("Count")
+    ax1.legend()
+    
+    ax2.set_title("Width Histogram by Class")
+    ax2.set_xlabel("Width [m]")
+    ax2.set_ylabel("Count")
+    ax2.legend()
+    
+    st.pyplot(fig)
+
+def plot_velocity_histogram_by_class(df_filtered):
+    """
+    df_filtered の中で label (class) ごとに物体の速度のヒストグラムを表示する。
+    """
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    if len(df_filtered) == 0:
+        ax.text(0.5, 0.5, "No data", ha='center', va='center')
+        st.pyplot(fig)
+        return
+    
+    # クラスごとにグループ化
+    grouped = df_filtered.groupby("label")
+    
+    # 各クラスの velocity を描画
+    for label_value, sub_df in grouped:
+        velocities = sub_df["velocity"].dropna().values
+        
+        if len(velocities) > 0:
+            ax.hist(
+                velocities,
+                bins=25,
+                alpha=0.5,
+                label=str(label_value)
+            )
+    
+    ax.set_title("Velocity Histogram by Class")
+    ax.set_xlabel("Velocity [m/s]")
+    ax.set_ylabel("Count")
+    ax.legend()
+    
+    st.pyplot(fig)
+
 
 def main():
     st.title("Streamlit Filtering Example")
@@ -544,8 +635,26 @@ def main():
     # plot_scatter_position(df_filtered, filters)
     plot_scatter_with_bbox(df_filtered, filters)
     plot_time_series(df_filtered, filters)
-    plot_distance_histogram_by_class_stacked(df_filtered)
-    plot_angle_histogram_by_class_stacked(df_filtered)
-    plot_polar_distribution(df_filtered)
+    
+    # 統計情報の表示
+    st.header("統計情報")
+    
+    # タブを使って統計情報を整理
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["距離", "角度", "極座標分布", "サイズ", "速度"])
+    
+    with tab1:
+        plot_distance_histogram_by_class_stacked(df_filtered)
+    
+    with tab2:
+        plot_angle_histogram_by_class_stacked(df_filtered)
+    
+    with tab3:
+        plot_polar_distribution(df_filtered)
+    
+    with tab4:
+        plot_size_histogram_by_class(df_filtered)
+    
+    with tab5:
+        plot_velocity_histogram_by_class(df_filtered)
 if __name__ == "__main__":
     main()
